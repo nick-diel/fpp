@@ -149,8 +149,8 @@ public:
             firstBuffer = tmp->next;
             delete tmp;
         }
-        if (doneRead || bufferCount > 10) {
-            //have ~10 seconds of audio already buffered, don't so anything
+        if (doneRead || bufferCount > 30) {
+            //have ~30 seconds of audio already buffered, don't so anything
             return doneRead;
         }
         
@@ -180,7 +180,7 @@ public:
                 }
             }
             av_packet_unref(&readingPacket);
-            if (newBuf && bufferCount > (first ? 10 : 5)) {
+            if (bufferCount > (first ? 20 : 10)) {
                 return doneRead;
             }
         }
@@ -198,6 +198,9 @@ public:
                                          (const uint8_t **)frame->data, frame->nb_samples);
             
             fillBuffer->pos += (outSamples * 2 * 2);
+            if (bufferCount > (first ? 20 : 10)) {
+                return doneRead;
+            }
         }
         addBuffer(fillBuffer);
         fillBuffer = nullptr;
@@ -426,8 +429,7 @@ SDLOutput::SDLOutput(const std::string &mediaFilename, MediaOutputStatus *status
     if (open_codec_context(&data->audio_stream_idx, &data->codecContext, data->formatContext, AVMEDIA_TYPE_AUDIO, m_mediaFilename) >= 0) {
         data->audioStream = data->formatContext->streams[data->audio_stream_idx];
     }
-    /* dump input information to stderr */
-    av_dump_format(data->formatContext, 0, m_mediaFilename.c_str(), 0);
+    //av_dump_format(data->formatContext, 0, m_mediaFilename.c_str(), 0);
     
     int64_t duration = data->formatContext->duration + (data->formatContext->duration <= INT64_MAX - 5000 ? 5000 : 0);
     int secs  = duration / AV_TIME_BASE;
@@ -460,16 +462,7 @@ SDLOutput::SDLOutput(const std::string &mediaFilename, MediaOutputStatus *status
     data->maybeFillBuffer(true);
     data->stopped = 0;
     
-    
-    pthread_attr_t tattr;
-    sched_param param;
-    
-    pthread_attr_init (&tattr);
-    pthread_attr_getschedparam (&tattr, &param);
-    param.sched_priority = 10;
-    pthread_attr_setschedparam (&tattr, &param);
-    
-    pthread_create(&data->fillThread, NULL, BufferFillThread, (void *)data);
+    pthread_create(&data->fillThread, nullptr, BufferFillThread, (void *)data);
 }
 
 /*

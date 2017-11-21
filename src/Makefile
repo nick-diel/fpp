@@ -208,6 +208,7 @@ else ifeq '$(ARCH)' 'BeagleBone Black'
 # BeagleBone Black
 BINDIR = ../bin.bbb
 CFLAGS += \
+	-DNOROOT \
 	-DPLATFORM_BBB \
 	-I../external/LEDscape/src/ledscape/ \
 	$(NULL)
