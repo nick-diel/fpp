@@ -26,6 +26,17 @@ fi
 echo "FPP Version: ${FPPVERSION}"
 echo "Config Version: ${CFGVERSION}"
 
+
+
+FPPPLATFORM=$(cat /etc/fpp/platform 2> /dev/null)
+case "${FPPPLATFORM}" in
+    'BeagleBone Black')
+        if [ ! -e "/usr/lib/arm-linux-gnueabihf/libavcodec.so.57" ]; then
+             apt-get install libsdl2-dev libavcodec-dev libavformat-dev libswresample-dev
+        fi
+    ;;
+esac
+
 for VERSION in $(seq 1 1000)
 do
 	if [ ${VERSION} -gt ${CFGVERSION} ]
@@ -42,4 +53,5 @@ do
 		fi
 	fi
 done
+
 

@@ -74,6 +74,7 @@ OBJECTS_fppd = \
 	mediaoutput/mediaoutput.o \
 	mediaoutput/mpg123.o \
 	mediaoutput/ogg123.o \
+	mediaoutput/SDLOut.o \
 	mediaoutput/omxplayer.o \
 	PixelOverlay.o \
 	Playlist.o \
@@ -89,6 +90,11 @@ LIBS_fppd = \
 	-lm \
 	-lutil \
 	-ltag \
+	-lSDL2 \
+	-lavformat \
+	-lavcodec \
+	-lavutil \
+	-lswresample \
 	$(NULL)
 
 SUBDIRS = 

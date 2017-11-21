@@ -32,6 +32,7 @@
 #include "mediaoutput.h"
 #include "mpg123.h"
 #include "ogg123.h"
+#include "SDLOut.h"
 #include "omxplayer.h"
 #include "Sequence.h"
 #include "settings.h"
@@ -142,13 +143,17 @@ int OpenMediaOutput(char *filename) {
 	}
 
 	if (!strcasecmp(&tmpFile[filenameLen - 4], ".mp3")) {
+#ifdef PLATFORM_PI
 		mediaOutput = new mpg123Output(tmpFile, &mediaOutputStatus);
 	} else if (!strcasecmp(&tmpFile[filenameLen - 4], ".ogg")) {
 		mediaOutput = new ogg123Output(tmpFile, &mediaOutputStatus);
-#ifdef PLATFORM_PI
 	} else if ((!strcasecmp(&tmpFile[filenameLen - 4], ".mp4")) ||
 			   (!strcasecmp(&tmpFile[filenameLen - 4], ".mkv"))) {
 		mediaOutput = new omxplayerOutput(tmpFile, &mediaOutputStatus);
+#else
+        mediaOutput = new SDLOutput(tmpFile, &mediaOutputStatus);
+    } else if (!strcasecmp(&tmpFile[filenameLen - 4], ".ogg")) {
+        mediaOutput = new SDLOutput(tmpFile, &mediaOutputStatus);
 #endif
 	} else {
 		pthread_mutex_unlock(&mediaOutputLock);
