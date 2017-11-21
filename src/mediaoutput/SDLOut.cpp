@@ -273,10 +273,11 @@ class SDL
     int _initialisedRate;
 
 public:
-    SDL();
+    SDL() : hasStarted(false), data(nullptr), _state(SDLSTATE::SDLUNINITIALISED) {}
     virtual ~SDL();
     
     void Start(SDLInternalData *d) {
+        initAudio();
         data = d;
         SDL_PauseAudio(0);
         _state = SDLSTATE::SDLPLAYING;
@@ -287,6 +288,9 @@ public:
         _state = SDLSTATE::SDLNOTPLAYING;
     };
     
+    void initAudio();
+    
+    bool hasStarted;
     SDLInternalData *data;
 };
 
@@ -327,7 +331,11 @@ void fill_audio(void *udata, Uint8 *stream, int len) {
 }
 
 
-SDL::SDL() : data(nullptr) {
+void SDL::initAudio()  {
+    if (hasStarted) {
+        return;
+    }
+    hasStarted = true;
     _state = SDLSTATE::SDLUNINITIALISED;
     
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER))
