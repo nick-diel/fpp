@@ -32,7 +32,7 @@ FPPPLATFORM=$(cat /etc/fpp/platform 2> /dev/null)
 case "${FPPPLATFORM}" in
     'BeagleBone Black')
         if [ ! -e "/usr/include/arm-linux-gnueabihf/libswresample/swresample.h" ]; then
-             apt-get install libsdl2-dev libavcodec-dev libavformat-dev libswresample-dev
+             apt-get  -q -y --reinstall install libsdl2-dev libavcodec-dev libavformat-dev libswresample-dev
         fi
     ;;
 esac
