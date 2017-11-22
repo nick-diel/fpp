@@ -34,10 +34,10 @@
 #include <unistd.h>
 #include <atomic>
 #include <cmath>
+#include <set>
 
 #include <list>
 #include <mutex>
-
 
 extern "C"
 {
@@ -57,8 +57,15 @@ extern "C"
 #include "Sequence.h"
 #include "settings.h"
 
-//roughly one second
-#define MAX_BUFFER_SIZE  44100*2*2
+//1/2 second buffers
+#define MAX_BUFFER_SIZE  44100*2
+//buffer the first 5 seconds
+#define INITIAL_BUFFER_MAX  10
+//keep a 5 second buffer
+#define ONGOING_BUFFER_MAX  10
+
+#define DEFAULT_NUM_SAMPLES 1024
+#define DEFAULT_RATE 44100
 
 class AudioBuffer {
 public:
@@ -92,6 +99,7 @@ public:
         doneRead = false;
         frame = av_frame_alloc();
         au_convert_ctx = nullptr;
+        decodedDataLen = 0;
     }
     ~SDLInternalData() {
         if (frame != nullptr) {
@@ -128,6 +136,7 @@ public:
     bool doneRead;
     std::atomic_uint curPos;
     unsigned int totalDataLen;
+    unsigned int decodedDataLen;
     float totalLen;
     
     void addBuffer(AudioBuffer *b) {
@@ -181,10 +190,11 @@ public:
                                                      (const uint8_t **)frame->extended_data, frame->nb_samples);
                         
                         fillBuffer->pos += (outSamples * 2 * 2);
+                        decodedDataLen += (outSamples * 2 * 2);
                         av_frame_unref(frame);
                     }
                 }
-                if (bufferCount > (first ? 20 : 10)) {
+                if (bufferCount > (first ? INITIAL_BUFFER_MAX : ONGOING_BUFFER_MAX)) {
                     av_packet_unref(&readingPacket);
                     return doneRead;
                 }
@@ -205,10 +215,12 @@ public:
                                          (const uint8_t **)frame->extended_data, frame->nb_samples);
             av_frame_unref(frame);
             fillBuffer->pos += (outSamples * 2 * 2);
-            if (bufferCount > (first ? 20 : 10)) {
+            decodedDataLen += (outSamples * 2 * 2);
+            if (bufferCount > (first ? INITIAL_BUFFER_MAX : ONGOING_BUFFER_MAX)) {
                 return doneRead;
             }
         }
+        totalDataLen = decodedDataLen;
         addBuffer(fillBuffer);
         fillBuffer = nullptr;
         doneRead = true;
@@ -302,11 +314,12 @@ public:
     
     bool hasStarted;
     SDLInternalData *data;
+    
+    std::set<std::string> blacklisted;
 };
 
 static SDL sdlManager;
-#define DEFAULT_NUM_SAMPLES 1024
-#define DEFAULT_RATE 44100
+
 
 void fill_audio(void *udata, Uint8 *stream, int len) {
     if (sdlManager.data != nullptr) {
@@ -345,6 +358,11 @@ void SDL::initAudio()  {
     if (hasStarted) {
         return;
     }
+    
+    if (!SDL_getenv("SDL_AUDIO_ALSA_SET_BUFFER_SIZE")) {
+        SDL_setenv("SDL_AUDIO_ALSA_SET_BUFFER_SIZE", "1", true);
+    }
+    
     hasStarted = true;
     _state = SDLSTATE::SDLUNINITIALISED;
     
@@ -386,13 +404,54 @@ SDL::~SDL() {
     }
 }
 
-
+void CancelRoutine(void *arg) {
+}
 void *BufferFillThread(void *d) {
+    int old;
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &old);
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, &old);
+    pthread_cleanup_push(CancelRoutine, nullptr);
+    
     SDLInternalData *data = (SDLInternalData *)d;
     while (!data->stopped && !data->maybeFillBuffer(false)) {
-        usleep(100);
+        timespec spec;
+        spec.tv_sec = 0;
+        spec.tv_nsec = 10000000; //10 ms
+        if (nanosleep(&spec, nullptr)) {
+            data->stopped++;
+        }
     }
     data->stopped++;
+    pthread_cleanup_pop(0);
+    return nullptr;
+}
+
+static std::string currentMediaFilename;
+static void LogCallback(void *     avcl,
+                        int     level,
+                        const char *     fmt,
+                        va_list     vl) {
+    pthread_testcancel();
+    
+    static int print_prefix = 1;
+    static char lastBuf[256] = "";
+    char buf[256];
+    av_log_format_line(avcl, level, fmt, vl, buf, 256, &print_prefix);
+    if (strcmp(buf, lastBuf) != 0) {
+        strcpy(lastBuf, buf);
+        if (level >= AV_LOG_DEBUG) {
+            LogExcess(VB_MEDIAOUT, "\"%s\" - %s", currentMediaFilename.c_str(), buf);
+        } else if (level >= AV_LOG_VERBOSE ) {
+            LogDebug(VB_MEDIAOUT, "\"%s\" - %s", currentMediaFilename.c_str(), buf);
+        } else if (level >= AV_LOG_INFO ) {
+            LogInfo(VB_MEDIAOUT, "\"%s\" - %s", currentMediaFilename.c_str(), buf);
+        } else if (level >= AV_LOG_WARNING) {
+            LogWarn(VB_MEDIAOUT, "\"%s\" - %s", currentMediaFilename.c_str(), buf);
+        } else {
+            LogErr(VB_MEDIAOUT, "\"%s\" - %s", currentMediaFilename.c_str(), buf);
+        }
+    }
+    pthread_testcancel();
 }
 /*
  *
@@ -401,7 +460,7 @@ SDLOutput::SDLOutput(const std::string &mediaFilename, MediaOutputStatus *status
 {
 	LogDebug(VB_MEDIAOUT, "SDLOutput::SDLOutput(%s)\n",
 		mediaFilename.c_str());
-
+    data = nullptr;
     
     std::string fullAudioPath = mediaFilename;
     if (!FileExists(mediaFilename.c_str())) {
@@ -416,10 +475,16 @@ SDLOutput::SDLOutput(const std::string &mediaFilename, MediaOutputStatus *status
         return;
     }
     
+    if (sdlManager.blacklisted.find(fullAudioPath) != sdlManager.blacklisted.end()) {
+        LogErr(VB_MEDIAOUT, "%s has been blacklisted!\n", fullAudioPath.c_str());
+        return;
+    }
+    currentMediaFilename = mediaFilename;
 	m_mediaFilename = fullAudioPath;
 	m_mediaOutputStatus = status;
     
     av_log_set_flags(AV_LOG_SKIP_REPEATED);
+    av_log_set_callback(LogCallback);
     
     data = new SDLInternalData();
 
@@ -480,7 +545,9 @@ SDLOutput::SDLOutput(const std::string &mediaFilename, MediaOutputStatus *status
 SDLOutput::~SDLOutput()
 {
     Stop();
-    delete data;
+    if (data) {
+        delete data;
+    }
 }
 
 /*
@@ -488,9 +555,13 @@ SDLOutput::~SDLOutput()
  */
 int SDLOutput::Start(void)
 {
-	LogDebug(VB_MEDIAOUT, "mpg123Output::Start()\n");
-    sdlManager.Start(data);
-	m_mediaOutputStatus->status = MEDIAOUTPUTSTATUS_PLAYING;
+	LogDebug(VB_MEDIAOUT, "SDLOutput::Start()\n");
+    if (data) {
+        sdlManager.Start(data);
+        m_mediaOutputStatus->status = MEDIAOUTPUTSTATUS_PLAYING;
+    } else {
+        m_mediaOutputStatus->status = MEDIAOUTPUTSTATUS_IDLE;
+    }
 	return 1;
 }
 
@@ -499,13 +570,22 @@ int SDLOutput::Start(void)
  */
 int SDLOutput::Process(void)
 {
+    if (!data) {
+        return 0;
+    }
     static int lastRemoteSync = 0;
-
-    unsigned int cur = data->curPos;
-    float pct = cur;
-    pct /= data->totalDataLen;
     
-    m_mediaOutputStatus->mediaSeconds = data->totalLen * pct;
+    float curtime = data->curPos;
+    if (curtime > 0) {
+        //we've sent DEFAULT_NUM_SAMPLES to the audio, but on
+        //average, only half have been played yet, but no way to really
+        //tell so we'll use the average
+        curtime -= ((DEFAULT_NUM_SAMPLES * 2 * 2)/ 2);
+    }
+    curtime /= DEFAULT_RATE; //samples per sec
+    curtime /= 4; //4 bytes per sample
+    
+    m_mediaOutputStatus->mediaSeconds = curtime;
 
     float ss, s;
     ss = std::modf( m_mediaOutputStatus->mediaSeconds, &s);
@@ -564,11 +644,24 @@ int  SDLOutput::Close(void)
 int SDLOutput::Stop(void)
 {
 	LogDebug(VB_MEDIAOUT, "SDLOutput::Stop()\n");
-    data->stopped++;
     sdlManager.Stop();
+    if (data && !data->stopped) {
+        data->stopped++;
+        timespec tv;
+        time(&tv.tv_sec);
+        
+        tv.tv_sec += 1;
+        tv.tv_nsec = 0;
+        //wait up to a second
+        if (pthread_timedjoin_np( data->fillThread, NULL, &tv) == ETIMEDOUT) {
+            printf("joining didn't work\n");
+            //cancel the thread, nothing we can do now
+            pthread_cancel(data->fillThread);
+            sdlManager.blacklisted.insert(m_mediaFilename);
+            LogWarn(VB_MEDIAOUT, "Problems decoding %d, blacklisting", m_mediaFilename.c_str());
+        }
+    }
 	m_mediaOutputStatus->status = MEDIAOUTPUTSTATUS_IDLE;
-    pthread_join( data->fillThread, NULL);
-
 	return 1;
 }
 
