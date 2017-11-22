@@ -139,6 +139,13 @@ int OpenMediaOutput(char *filename) {
 			LogDebug(VB_MEDIAOUT,
 				"Master is playing OGG %s, remote will try %s Video\n",
 				filename, tmpFile);
+                }
+                else if (!strcmp(&tmpFile[filenameLen - 4], ".m4a"))
+	        {
+                       strcpy(&tmpFile[filenameLen - 4], ".mp4");
+                       LogDebug(VB_MEDIAOUT,
+                                "Master is playing m4a %s, remote will try %s Video\n",
+                                 filename, tmpFile);		
 		}
 	}
 
@@ -151,6 +158,8 @@ int OpenMediaOutput(char *filename) {
 			   (!strcasecmp(&tmpFile[filenameLen - 4], ".mkv"))) {
 		mediaOutput = new omxplayerOutput(tmpFile, &mediaOutputStatus);
 #else
+        mediaOutput = new SDLOutput(tmpFile, &mediaOutputStatus);
+    } else if (!strcasecmp(&tmpFile[filenameLen - 4], ".m4a")) {
         mediaOutput = new SDLOutput(tmpFile, &mediaOutputStatus);
     } else if (!strcasecmp(&tmpFile[filenameLen - 4], ".ogg")) {
         mediaOutput = new SDLOutput(tmpFile, &mediaOutputStatus);
