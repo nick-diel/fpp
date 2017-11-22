@@ -57,11 +57,13 @@ extern "C"
 #include "Sequence.h"
 #include "settings.h"
 
+//roughly one second
+#define MAX_BUFFER_SIZE  44100*2*2
 
 class AudioBuffer {
 public:
     AudioBuffer() {
-        size = 44100 * 2 * 2; //per second
+        size = MAX_BUFFER_SIZE;
         data = (uint8_t*)malloc(size);
         pos = 0;
         next = nullptr;
@@ -131,6 +133,10 @@ public:
     void addBuffer(AudioBuffer *b) {
         b->size = b->pos;
         b->pos = 0;
+        if (b->size == 0) {
+            delete b;
+            return;
+        }
         
         if (lastBuffer == nullptr) {
             firstBuffer = b;
@@ -172,17 +178,18 @@ public:
                         int outSamples = swr_convert(au_convert_ctx,
                                                      &out_buffer,
                                                      (fillBuffer->size - fillBuffer->pos) / 4,
-                                                     (const uint8_t **)frame->data, frame->nb_samples);
+                                                     (const uint8_t **)frame->extended_data, frame->nb_samples);
                         
                         fillBuffer->pos += (outSamples * 2 * 2);
                         av_frame_unref(frame);
                     }
                 }
+                if (bufferCount > (first ? 20 : 10)) {
+                    av_packet_unref(&readingPacket);
+                    return doneRead;
+                }
             }
             av_packet_unref(&readingPacket);
-            if (bufferCount > (first ? 20 : 10)) {
-                return doneRead;
-            }
         }
         while (!avcodec_receive_frame(codecContext, frame)) {
             int sz = frame->nb_samples * 2 * 2;
@@ -190,13 +197,13 @@ public:
                 addBuffer(fillBuffer);
                 fillBuffer = new AudioBuffer();
             }
-            
+
             uint8_t* out_buffer = &fillBuffer->data[fillBuffer->pos];
             int outSamples = swr_convert(au_convert_ctx,
                                          &out_buffer,
                                          (fillBuffer->size - fillBuffer->pos) / 4,
-                                         (const uint8_t **)frame->data, frame->nb_samples);
-            
+                                         (const uint8_t **)frame->extended_data, frame->nb_samples);
+            av_frame_unref(frame);
             fillBuffer->pos += (outSamples * 2 * 2);
             if (bufferCount > (first ? 20 : 10)) {
                 return doneRead;
@@ -411,6 +418,8 @@ SDLOutput::SDLOutput(const std::string &mediaFilename, MediaOutputStatus *status
     
 	m_mediaFilename = fullAudioPath;
 	m_mediaOutputStatus = status;
+    
+    av_log_set_flags(AV_LOG_SKIP_REPEATED);
     
     data = new SDLInternalData();
 
