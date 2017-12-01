@@ -222,7 +222,6 @@ OBJECTS_fppd += \
 DEPS_fppd += \
 	../external/LEDscape/lib/libledscape.a \
 	$(NULL)
-SUBDIRS += pru
 SUBMODULES += \
 	external/LEDscape \
 	$(NULL)

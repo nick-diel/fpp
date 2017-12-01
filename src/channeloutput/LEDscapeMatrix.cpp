@@ -27,7 +27,8 @@
 #include <strings.h>
 #include <unistd.h>
 #include <stdio.h>
-
+#include <vector>
+#include <sys/wait.h>
 
 #include "pru.h"
 
@@ -37,6 +38,12 @@
 #include "settings.h"
 
 /////////////////////////////////////////////////////////////////////////////
+
+enum ScollerPinout {
+    V1 = 1,
+    V2,
+    POCKETSCROLLERv1
+};
 
 /*
  *
@@ -65,13 +72,33 @@ LEDscapeMatrixOutput::~LEDscapeMatrixOutput()
 	delete m_matrix;
 }
 
+
+static void compilePRUMatrixCode(std::vector<std::string> &sargs) {
+    pid_t compilePid = fork();
+    if (compilePid == 0) {
+        char * args[sargs.size() + 3];
+        args[0] = "/bin/bash";
+        args[1] = "/opt/fpp/src/pru/compileMatrix.sh";
+        
+        for (int x = 0; x < sargs.size(); x++) {
+            args[x + 2] = (char*)sargs[x].c_str();
+        }
+        args[sargs.size() + 2] = NULL;
+        
+        execvp("/bin/bash", args);
+    } else {
+        wait(NULL);
+    }
+}
+
+
 static void calcBrightness(ledscape_t *leds, int brightness, int maxPanel, int maxOutput, int rowsPerOutput,
-                           int panelHeight, int panelWidth, int ver) {
+                           int panelHeight, int panelWidth, ScollerPinout ver) {
     LogDebug(VB_CHANNELOUT, "Calc Brightness:   maxPanel:  %d    maxOutput: %d     Brightness: %d    rpo: %d    ph:  %d    pw:  %d\n", maxPanel, maxOutput, brightness, rowsPerOutput, panelHeight, panelWidth);
     
     
     uint32_t max = (maxOutput < 4) ? 0xB00 : 0xD00;
-    if (ver == 2) {
+    if (ver == V1) {
         if (maxOutput == 1) {
             max = 0x500;
         } else if (maxOutput < 4) {
@@ -86,12 +113,12 @@ static void calcBrightness(ledscape_t *leds, int brightness, int maxPanel, int m
     max *= panelWidth;
     max /= 32;
     max += maxOutput * 0x200;
-    if (ver == 1) {
+    if (ver == V1) {
         if (maxOutput > 3) {
             //jumping above output 3 adds increased delay
             max += 0x300;
         }
-    } else if (ver == 2) {
+    } else if (ver == V2 || ver == POCKETSCROLLERv1) {
         if (maxOutput > 1) {
             //jumping above output 1 adds increased delay
             max += 0x300;
@@ -338,23 +365,32 @@ int LEDscapeMatrixOutput::Init(Json::Value config)
 		return 0;
 	}
 
-	std::string pru_program(getBinDirectory());
-
-	if (tail(pru_program, 4) == "/src")
-		pru_program += "/pru/";
-	else
-		pru_program += "/../lib/";
     
-    pru_program += "FalconMatrix_";
+    std::vector<std::string> compileArgs;
+    
+    ScollerPinout ver = V1;
     if (config["wiringPinout"] == "v2") {
-        pru_program += "v2_";
+        ver = V2;
+        compileArgs.push_back("-DOCTO_V2");
+    } else if (config["wiringPinout"] == "PocketScroller1x") {
+        ver = POCKETSCROLLERv1;
+        compileArgs.push_back("-DPOCKETSCROLLER_V1");
+    } else {
+        compileArgs.push_back("-DOCTO_V1");
     }
 
  
     char outputString[10];
     sprintf(outputString, "%d", (maxOutput + 1));
-    pru_program += outputString;
-    pru_program += ".bin";
+
+    char outputStringCompiler[200];
+    sprintf(outputStringCompiler, "-DOUTPUTS=%d", (maxOutput + 1));
+    compileArgs.push_back(outputStringCompiler);
+
+    compilePRUMatrixCode(compileArgs);
+
+    std::string pru_program = "/tmp/FalconMatrix.bin";
+
     LogDebug(VB_CHANNELOUT, "Using program %s with brightness %d\n", pru_program.c_str(), brightness);
 
 	m_leds = ledscape_matrix_init(m_config, 0, 1, pru_program.c_str());
@@ -367,7 +403,7 @@ int LEDscapeMatrixOutput::Init(Json::Value config)
     m_leds->ws281x->statEnable = 0;
     calcBrightness(m_leds, brightness, maxPanel + 1, maxOutput + 1, lmconfig->rowsPerOutput,
                    lmconfig->panel_height, lmconfig->panel_width,
-                   config["wiringPinout"] == "v2" ? 2 : 1);
+                   ver);
     
     m_leds->ws281x->num_pixels = lmconfig->maxPanel * lmconfig->panel_width / 8;
     if ((lmconfig->rowsPerOutput * 4) ==  lmconfig->panel_height) {

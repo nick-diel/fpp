@@ -2126,6 +2126,8 @@ if ($settings['Platform'] == "BeagleBone Black")
 {
     if (strpos($settings['SubPlatform'], 'Green Wireless') !== FALSE) {
         $LEDPanelOutputs = 5;
+    } else if (strpos($settings['SubPlatform'], 'PocketBeagle') !== FALSE) {
+        $LEDPanelOutputs = 6;
     } else {
         $LEDPanelOutputs = 8;
     }
@@ -2829,6 +2831,10 @@ tr.rowUniverseDetails td
         if (strpos($settings['SubPlatform'], 'Green Wireless') !== FALSE) {
 ?>
                                         <option value='v2'>v2.x</option>
+<?
+        } else if (strpos($settings['SubPlatform'], 'PocketBeagle') !== FALSE) {
+?>
+            <option value='PocketScroller1x'>PocketScroller</option>
 <?
         } else {
 ?>

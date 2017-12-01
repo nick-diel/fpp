@@ -118,10 +118,14 @@
     OUTPUT_GPIO_WITH_BASE_REG data, mask, gpio_base
 .endm
 
-#ifndef OCTO_V2
+#if defined OCTO_V1
 #include "OctoscrollerV1.hp"
-#else
+#elif defined OCTO_V2
 #include "OctoscrollerV2.hp"
+#elif defined POCKETSCROLLER_V1
+#include "PocketScrollerV1.hp"
+#else
+#include "OctoscrollerV1.hp"
 #endif
 
 #ifdef gpio_clock
