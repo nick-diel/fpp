@@ -241,8 +241,7 @@ CFLAGS += \
 	$(NULL)
 endif
 
-# doesn't work yet as  several .c files are actually cxx files
-# CXXFLAGS += -std=gnu++11
+CXXFLAGS += -std=gnu++14
 
 ##############################################################################
 # Include a local Makefile if one exists to modify any of the above
