@@ -133,7 +133,7 @@ function flashEMMCBtrfs() {
                     the entire size of the SD card.</td>
             </tr>
             <tr><td colspan='2'><hr></td></tr>
-<?php>
+<?php
     if (strpos($settings['SubPlatform'], 'PocketBeagle') === FALSE) {
 ?>
             <tr><td>
