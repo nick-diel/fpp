@@ -25,7 +25,7 @@ cd /opt/scripts/tools
 sudo ./update_kernel.sh
 
 # delete old kernels and modules in /boot and /lib/modules
-
+# and in /boot/dtbs
 
 cd /opt/scripts/tools/developers/
 sudo ./update_bootloader.sh
@@ -59,6 +59,7 @@ apt-get install alsa-utils ccache bzip2 samba rsync vsftpd shellinabox vorbis-to
     php php-cli php-common php-curl php-fpm php-mcrypt php-pear \
     python-daemon python-smbus \
     ola ola-python libola-dev libola1 libboost-dev libjsoncpp-dev libtag1-dev \
+    libconvert-binary-c-perl libjson-perl perlmagick \
     libavcodec-dev libavformat-dev libswresample-dev libsdl2-dev
 
 
@@ -83,9 +84,11 @@ rm -rf /opt/source/BB*
 rm -rf /opt/source/adafruit*
 rm -rf /opt/source/Userspace*
 rm /usr/local/bin/node-red*
-
-
-
+rm -rf /var/cache/doc-beaglebone-getting-started
+rm -rf /usr/share/beagle-tester
+rm -rf /usr/sbin/beagle-tester*
+rm -rf /lib/systemd/system/beagle-tester.service
+rm -rf /etc/udev/rules.d/beagle-tester.rules
 curl -L https://cpanmin.us | perl - --sudo App::cpanminus
 echo "yes" | cpanm -fin Test::Tester File::Map Net::WebSocket::Server Net::PJLink
 
