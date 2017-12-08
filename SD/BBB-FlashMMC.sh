@@ -38,7 +38,7 @@ echo ""
 
 #mount
 mkdir /tmp/rootfs
-mount -t btrfs -o noatime,nodiratime,compress-force=lzo ${DEVICE}p2 /tmp/rootfs
+mount -t btrfs -o noatime,nodiratime,compress-force=zlib ${DEVICE}p2 /tmp/rootfs
 mkdir /tmp/rootfs/boot
 mount -t ext4 -o noatime ${DEVICE}p1 /tmp/rootfs/boot
 
@@ -47,7 +47,7 @@ echo "Copy files rootfs"
 echo ""
 
 #copy files
-rsync -aAx --human-readable --info=name0,progress2 /ID.txt /bbb-uEnv.txt /bin /boot /dev /etc /home /lib /lost+found /media /mnt /nfs-uEnv.txt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /tmp/rootfs --exclude=/dev/* --exclude=/proc/* --exclude=/sys/* --exclude=/tmp/* --exclude=/run/* --exclude=/mnt/* --exclude=/media/* --exclude=/lost+found --exclude=/uEnv.txt
+rsync -aAx --human-readable --info=name0,progress2 /ID.txt /bin /boot /dev /etc /home /lib /lost+found /media /mnt /opt /proc /root /run /sbin /srv /sys /tmp /usr /var /tmp/rootfs --exclude=/dev/* --exclude=/proc/* --exclude=/sys/* --exclude=/tmp/* --exclude=/run/* --exclude=/mnt/* --exclude=/media/* --exclude=/lost+found --exclude=/uEnv.txt
 
 echo "---------------------------------------"
 echo "Configure /boot"
