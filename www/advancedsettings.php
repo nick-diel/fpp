@@ -164,5 +164,6 @@ function flashEMMCBtrfs() {
 <p><span class="ui-icon ui-icon-alert" style="flat:left; margin: 0 7px 20px 0;"></span>Flashing the eMMC can take a long time.  Do you wish to proceed?</p>
 </div>
 <?php	include 'common/footer.inc'; ?>
+</div>
 </body>
 </html>
