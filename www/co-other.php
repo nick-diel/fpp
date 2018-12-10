@@ -1160,6 +1160,59 @@ function GetSPIOutputConfig(result, cell) {
 }
 
 /////////////////////////////////////////////////////////////////////////////
+// Generic SPI Devices (/dev/spidev*
+
+function SPIGenericDeviceConfig(config) {
+	var result = "";
+
+	result += DeviceSelect(SPIDevices, config.device);
+	result += "Speed: <input class='speed' type='text' size=4 maxlength=4 value='" + config.speed + "'>";
+	result += " Header: <input type=checkbox class='header'";
+	if (config.header)
+		result += " checked='checked'";
+
+	result += ">";
+
+	return result;
+}
+
+function NewSPIGenericConfig() {
+	var config = {};
+
+	config.device = "";
+	config.speed = "";
+	config.header = 0;
+
+	return SPIGenericDeviceConfig(config);
+}
+
+function GetSPIGenericOutputConfig(result, cell) {
+	$cell = $(cell);
+	
+	var device = $cell.find("select.device").val();
+
+	if (device == "")
+		return "";
+
+	var speed = $cell.find("input.speed").val();
+
+	if (!speed && (speed < 32 || channel > 125000))
+		return "";
+
+	var header = 0;
+
+	if ($cell.find("input.header").is(":checked"))
+		header = 1;
+
+	result.device = device;
+	result.speed = parseInt(speed);
+	result.header = parseInt(header);
+
+	return result;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // nRF/Komby
 var nRFSpeeds = ["250K", "1M"];
 
@@ -1246,6 +1299,8 @@ function PopulateChannelOutputTable(data) {
                 newRow += LOROutputConfig(output);
             } else if (type == "SPI-WS2801") {
                 newRow += SPIDeviceConfig(output);
+			} else if (type == "SPI-Generic") {
+                newRow += SPIGenericDeviceConfig(output);
             } else if (type == "SPI-nRF24L01") {
                 newRow += SPInRFDeviceConfig(output);
             } else if (type == "Triks-C") {
@@ -1375,7 +1430,16 @@ function SaveOtherChannelOutputs() {
 				return;
 			}
 			maxChannels = 1530;
-		} else if (type == "SPI-nRF24L01") {
+		} else if (type == "SPI-Generic") {
+			config = GetSPIGenericOutputConfig(config, $this.find("td:nth-child(6)"));
+			if (config == "") {
+				dataError = 1;
+				DialogError("Save Channel Outputs", "Invalid SPI-Generic Config");
+				return;
+			}
+			maxChannels = 16777215;
+		} 
+		else if (type == "SPI-nRF24L01") {
 			config = GetnRFSpeedConfig(config, $this.find("td:nth-child(6)"));
 			if (config == "") {
 				dataError = 1;
@@ -1497,6 +1561,9 @@ function AddOtherTypeOptions(row, type) {
 	} else if (type == "SPI-WS2801") {
 		config += NewSPIConfig();
 		row.find("td input.count").val("1530");
+	} else if (type == "SPI-Generic") {
+		config += NewSPIGenericConfig();
+		row.find("td input.count").val("1530");
 	} else if (type == "SPI-nRF24L01") {
 		config += NewnRFSPIConfig();
 		row.find("td input.count").val("512");
@@ -1555,7 +1622,8 @@ function OtherTypeSelected(selectbox) {
 	}
 
 	if ((Object.keys(SPIDevices).length == 0) &&
-			(type == 'SPI-WS2801'))
+			((type == 'SPI-WS2801') ||
+			(type == 'SPI-Generic')))
 	{
 		DialogError("Add Output", "No available SPI devices detected.");
 		$row.remove();
@@ -1607,6 +1675,7 @@ function AddOtherOutput() {
 	{
 ?>
 				"<option value='SPI-WS2801'>SPI-WS2801</option>" +
+				"<option value='SPI-Generic'>SPI-Generic</option>" +
 				"<option value='SPI-nRF24L01'>SPI-nRF24L01</option>" +
 				"<option value='MAX7219Matrix'>MAX7219 Matrix</option>" +
 <?

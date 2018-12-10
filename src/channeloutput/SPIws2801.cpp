@@ -46,6 +46,10 @@
 #endif
 
 #define SPIWS2801_MAX_CHANNELS  1530
+#define MAX_CHANNELS 16777215
+#define WS2801_SPI_SPEED 1000000
+#define RPI_MAX_SPI_SPEED_HZ 125000000
+#define RPI_MIN_SPI_SPEED_HZ 32000
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -55,14 +59,18 @@
 SPIws2801Output::SPIws2801Output(unsigned int startChannel, unsigned int channelCount)
   : ThreadedChannelOutputBase(startChannel, channelCount),
 	m_port(-1),
+	m_speed_hz(0),
 	m_pi36(0),
 	m_pi36Data(NULL),
-	m_pi36DataSize(0)
+	m_pi36DataSize(0),
+	m_header(0)
 {
 	LogDebug(VB_CHANNELOUT, "SPIws2801Output::SPIws2801Output(%u, %u)\n",
 		startChannel, channelCount);
+		
 
-	m_maxChannels = SPIWS2801_MAX_CHANNELS;
+	//this is broken, max channel count is different per subtype and the max channel check happens before subtype is defined
+	m_maxChannels = MAX_CHANNELS;
 }
 
 /*
@@ -106,8 +114,39 @@ int SPIws2801Output::Init(char *configStr)
 			m_pi36DataSize = m_channelCount >= 36 ? m_channelCount : 36;
 			m_pi36Data = new unsigned char[m_pi36DataSize];
 		}
+		else if (elem[0] == "speed")
+		{
+			//input page ask for speed in khz
+			int config_speed = 1000*std::stoi(elem[1]);
+			if (config_speed < RPI_MIN_SPI_SPEED_HZ)
+				m_speed_hz = RPI_MIN_SPI_SPEED_HZ;
+			else if (config_speed > RPI_MAX_SPI_SPEED_HZ)
+				m_speed_hz = RPI_MAX_SPI_SPEED_HZ;
+			else
+				m_speed_hz = config_speed;
+		}
+		else if ((elem[0] == "header") &&
+				 (elem[1] == "1"))
+		{
+			m_header = 1;
+		}
 	}
 
+	if (m_pi36)
+	{
+		m_device_type = WS2801_PI36;
+		m_speed_hz = WS2801_SPI_SPEED;
+	}
+	else if (m_header)
+		m_device_type = GENERIC_HEADER;
+	else if (m_speed_hz > 0)
+		m_device_type = GENERIC;
+	else
+	{
+		m_device_type = WS2801;
+		m_speed_hz = WS2801_SPI_SPEED;
+	}
+	
 	if (m_port == -1)
 	{
 		LogErr(VB_CHANNELOUT, "Invalid Config String: %s\n", configStr);
@@ -116,7 +155,7 @@ int SPIws2801Output::Init(char *configStr)
 
 	LogDebug(VB_CHANNELOUT, "Using SPI Port %d\n", m_port);
 
-	if (wiringPiSPISetup(m_port, 1000000) < 0)
+	if (wiringPiSPISetup(m_port, m_speed_hz) < 0)
 	{
 		LogErr(VB_CHANNELOUT, "Unable to open SPI device\n") ;
 		return 0;

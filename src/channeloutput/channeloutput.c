@@ -397,7 +397,10 @@ int InitializeChannelOutputs(void) {
 				} else if (type == "SPI-WS2801") {
 					channelOutputs[i].output = new SPIws2801Output(start, count);
 					ChannelOutputJSON2CSV(outputs[c], csvConfig);
-				} else if (type == "SPI-nRF24L01") {
+				} else if (type == "SPI-Generic") {
+					channelOutputs[i].output = new SPIws2801Output(start, count);
+					ChannelOutputJSON2CSV(outputs[c], csvConfig);
+				}else if (type == "SPI-nRF24L01") {
 					channelOutputs[i].outputOld = &SPInRF24L01Output;
 					ChannelOutputJSON2CSV(outputs[c], csvConfig);
 #endif

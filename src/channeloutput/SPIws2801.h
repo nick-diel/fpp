@@ -44,10 +44,23 @@ class SPIws2801Output : public ThreadedChannelOutputBase {
     virtual void GetRequiredChannelRange(int &min, int & max);
 
   private:
+	enum Device_Types 
+	{
+		WS2801, 
+		WS2801_PI36,
+		GENERIC,
+		GENERIC_HEADER
+	};
 	int            m_port;
+	int			   m_speed_hz;
 	int            m_pi36;
 	unsigned char *m_pi36Data;
 	int            m_pi36DataSize;
+	int			   m_header;
+	Device_Types   m_device_type;
+
+
+
 };
 
 #endif
