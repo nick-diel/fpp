@@ -1,4 +1,14 @@
 <script>
+
+var outputDevices = [];
+
+//Devices for all platforms
+
+//Devices for Raspberry Pi or Beagle
+
+//Devices for Raspberry Pi
+outputDevices.push(new SPI-WS2801Device());
+
 /////////////////////////////////////////////////////////////////////////////
 // Misc. Support functions
 function DeviceSelect(deviceArray, currentValue) {
@@ -1117,57 +1127,6 @@ function NewLORConfig() {
 	return LOROutputConfig(config);
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// SPI Devices (/dev/spidev*
-var SPIDevices = new Array();
-<?
-	foreach(scandir("/dev/") as $fileName)
-	{
-		if (preg_match("/^spidev[0-9]/", $fileName)) {
-			echo "SPIDevices['$fileName'] = '$fileName';\n";
-		}
-	}
-?>
-
-function SPIDeviceConfig(config) {
-	var result = "";
-
-	result += DeviceSelect(SPIDevices, config.device);
-	result += " PI36: <input type=checkbox class='pi36'";
-	if (config.pi36)
-		result += " checked='checked'";
-
-	result += ">";
-
-	return result;
-}
-
-function NewSPIConfig() {
-	var config = {};
-
-	config.device = "";
-	config.pi36 = 0;
-
-	return SPIDeviceConfig(config);
-}
-
-function GetSPIOutputConfig(result, cell) {
-	$cell = $(cell);
-	var value = $cell.find("select.device").val();
-
-	if (value == "")
-		return "";
-
-	var pi36 = 0;
-
-	if ($cell.find("input.pi36").is(":checked"))
-		pi36 = 1;
-
-	result.device = value;
-	result.pi36 = parseInt(pi36);
-
-	return result;
-}
 
 /////////////////////////////////////////////////////////////////////////////
 // nRF/Komby
